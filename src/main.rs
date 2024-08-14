@@ -109,3 +109,21 @@ fn bruteforce(
     }
     res
 }
+
+#[cfg(test)]
+mod test {
+    use std::hash::BuildHasher;
+    use std::hash::Hasher;
+    use super::*;
+
+    #[test]
+    fn hash_bruteforce() {
+        for _ in 0..50 {
+            let random = std::hash::RandomState::new().build_hasher().finish();
+            let trim = murmur::revhash_trim(random);
+            let res = bruteforce(trim).unwrap();
+            let check = murmur::hash(&res);
+            assert_eq!(random, check);
+        }
+    }
+}
