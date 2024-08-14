@@ -4,7 +4,40 @@ mod murmur;
 
 const ASCII_START: u8 = 32;
 const ASCII_END: u8 = 127;
-const ASCII_RANGE: std::ops::Range<u8> = ASCII_START..ASCII_END;
+const ASCII_RANGE: AsciiIter = AsciiIter(ASCII_START);
+
+struct AsciiIter(u8);
+
+impl AsciiIter {
+    fn contains(c: u8) -> bool {
+        c >= ASCII_START
+            && c < ASCII_END
+            && c != b'\\'
+    }
+}
+
+impl Clone for AsciiIter {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl Iterator for AsciiIter {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 == b'\\' {
+            self.0 += 1;
+        }
+        if self.0 < ASCII_END {
+            let c = self.0;
+            self.0 += 1;
+            Some(c)
+        } else {
+            None
+        }
+    }
+}
 
 fn main() -> ExitCode {
     let mut args = std::env::args();
@@ -51,7 +84,7 @@ fn bruteforce(
                                     let phash = murmur::prehash(&prefix, 15);
 
                                     let check = u64::to_ne_bytes(phash ^ trim_hash);
-                                    if i7 == ASCII_START && !ASCII_RANGE.contains(&check[0]) {
+                                    if i7 == ASCII_START && !AsciiIter::contains(check[0]) {
                                         break;
                                     }
                                     if check[7] != 0 {
@@ -59,7 +92,7 @@ fn bruteforce(
                                     }
 
                                     let check = &check[..7];
-                                    let valid = check.iter().all(|&b| b >= ASCII_START && b < ASCII_END);
+                                    let valid = check.iter().all(|&b| AsciiIter::contains(b));
                                     if valid {
                                         let mut buf = prefix.to_vec();
                                         buf.extend(check);
