@@ -23,7 +23,7 @@ fn main() -> ExitCode {
                     for i4 in ASCII_RANGE {
                         for i5 in ASCII_RANGE {
                             for i6 in ASCII_RANGE {
-                                for (i, i7) in ASCII_RANGE.enumerate() {
+                                for i7 in ASCII_RANGE {
                                     let prefix = [
                                         i0,
                                         i1,
@@ -37,7 +37,7 @@ fn main() -> ExitCode {
                                     let phash = murmur::prehash(&prefix, 15);
 
                                     let check = u64::to_ne_bytes(phash ^ trim);
-                                    if i == 0 && !(check[0] >= ASCII_START && check[0] < ASCII_END) {
+                                    if i7 == ASCII_START && !ASCII_RANGE.contains(&check[0]) {
                                         break;
                                     }
                                     if check[7] != 0 {
