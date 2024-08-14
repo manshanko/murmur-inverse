@@ -15,6 +15,20 @@ fn main() -> ExitCode {
 
     let trim = murmur::revhash_trim(target_hash);
 
+    if let Some(res) = bruteforce(trim) {
+        let hash = murmur::hash(&res);
+        assert_eq!(hash, target_hash);
+        println!("{:?}", res);
+        ExitCode::SUCCESS
+    } else {
+        eprintln!("failed to find ascii inverse in range");
+        ExitCode::FAILURE
+    }
+}
+
+fn bruteforce(
+    trim_hash: u64
+) -> Option<String> {
     let mut res = None;
     'outer_loop: for i0 in ASCII_RANGE {
         for i1 in ASCII_RANGE {
@@ -36,7 +50,7 @@ fn main() -> ExitCode {
                                     ];
                                     let phash = murmur::prehash(&prefix, 15);
 
-                                    let check = u64::to_ne_bytes(phash ^ trim);
+                                    let check = u64::to_ne_bytes(phash ^ trim_hash);
                                     if i7 == ASCII_START && !ASCII_RANGE.contains(&check[0]) {
                                         break;
                                     }
@@ -49,7 +63,7 @@ fn main() -> ExitCode {
                                     if valid {
                                         let mut buf = prefix.to_vec();
                                         buf.extend(check);
-                                        res = Some(buf);
+                                        res = Some(String::from_utf8(buf).unwrap());
                                         break 'outer_loop;
                                     }
                                 }
@@ -60,14 +74,5 @@ fn main() -> ExitCode {
             }
         }
     }
-
-    if let Some(res) = res {
-        let hash = murmur::hash(&res);
-        assert_eq!(hash, target_hash);
-        println!("{:?}", String::from_utf8_lossy(&res));
-        ExitCode::SUCCESS
-    } else {
-        eprintln!("failed to find ascii inverse in range");
-        ExitCode::FAILURE
-    }
+    res
 }
