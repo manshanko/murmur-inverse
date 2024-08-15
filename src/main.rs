@@ -1,10 +1,12 @@
-use std::process::ExitCode;
+use std::collections::HashMap;
+use std::fmt::Write;
 
 mod murmur;
 
 const ASCII_START: u8 = 32;
 const ASCII_END: u8 = 127;
 const ASCII_RANGE: AsciiIter = AsciiIter(ASCII_START);
+const ASCII_HASH_MASK: u64 = 0b1111111110000000100000001000000010000000100000001000000010000000;
 
 struct AsciiIter(u8);
 
@@ -39,30 +41,68 @@ impl Iterator for AsciiIter {
     }
 }
 
-fn main() -> ExitCode {
+struct HashSlot(HashMap<u64, Vec<(u64, u64)>>);
+
+impl HashSlot {
+    fn new() -> Self {
+        Self(HashMap::new())
+    }
+
+    fn insert(&mut self, hash: u64) {
+        let trim = murmur::revhash_trim(hash);
+        let slot = trim & ASCII_HASH_MASK;
+        let list = self.0.entry(slot).or_insert(Vec::new());
+        list.push((hash, trim));
+    }
+}
+
+fn main() {
     let mut args = std::env::args();
     let _bin = args.next();
-    let target_hash = args.next().expect("expected 8 byte hex (16 characters)");
-    assert_eq!(target_hash.len(), 16);
-    let target_hash = u64::from_str_radix(&target_hash, 16).unwrap();
+    let target = args.next().expect("expected 8 byte hex (16 characters)");
 
-    let trim = murmur::revhash_trim(target_hash);
+    let mut targets = Vec::new();
+    match u64::from_str_radix(&target, 16) {
+        Ok(hash) => targets.push(hash),
+        Err(_) => {
+            let buffer = std::fs::read_to_string(&target)
+                .expect("failed to parse argument as hash or path to file");
+            for line in buffer.lines() {
+                if let Ok(hash) = u64::from_str_radix(line, 16) {
+                    targets.push(hash);
+                }
+            }
+        }
+    }
 
-    if let Some(res) = bruteforce(trim) {
-        let hash = murmur::hash(&res);
-        assert_eq!(hash, target_hash);
-        println!("{:?}", res);
-        ExitCode::SUCCESS
-    } else {
-        eprintln!("failed to find ascii inverse in range");
-        ExitCode::FAILURE
+    let num_hashes = targets.len();
+    let mut hashes = HashSlot::new();
+    for hash in targets {
+        hashes.insert(hash);
+    }
+
+    let res = bruteforce(hashes);
+    assert_eq!(res.len(), num_hashes);
+    if cfg!(debug_assertions) {
+        for (hash, inverse_key) in &res {
+            assert_eq!(*hash, murmur::hash(inverse_key));
+        }
+    }
+
+    let mut out = String::new();
+    for (hash, inverse_key) in &res {
+        writeln!(&mut out, "{hash:016x} = {inverse_key:?}").unwrap();
+    }
+    print!("{out}");
+    if num_hashes > 1 {
+        println!("generated keys for {} of {} hashes", res.len(), num_hashes);
     }
 }
 
 fn bruteforce(
-    trim_hash: u64
-) -> Option<String> {
-    let mut res = None;
+    mut hashes: HashSlot,
+) -> Vec<(u64, String)> {
+    let mut res = Vec::new();
     'outer_loop: for i0 in ASCII_RANGE {
         for i1 in ASCII_RANGE {
             for i2 in ASCII_RANGE {
@@ -83,21 +123,27 @@ fn bruteforce(
                                     ];
                                     let phash = murmur::prehash(&prefix, 15);
 
-                                    let check = u64::to_ne_bytes(phash ^ trim_hash);
-                                    if i7 == ASCII_START && !AsciiIter::contains(check[0]) {
-                                        break;
-                                    }
-                                    if check[7] != 0 {
-                                        continue;
-                                    }
+                                    let slot = phash & ASCII_HASH_MASK;
+                                    if let Some(list) = hashes.0.get_mut(&slot) {
+                                        list.retain(|(hash, trim)| {
+                                            let check = u64::to_ne_bytes(phash ^ trim);
+                                            assert!(check[7] == 0);
 
-                                    let check = &check[..7];
-                                    let valid = check.iter().all(|&b| AsciiIter::contains(b));
-                                    if valid {
-                                        let mut buf = prefix.to_vec();
-                                        buf.extend(check);
-                                        res = Some(String::from_utf8(buf).unwrap());
-                                        break 'outer_loop;
+                                            let check = &check[..7];
+                                            let valid = check.iter().all(|&b| AsciiIter::contains(b));
+                                            if valid {
+                                                let mut buf = prefix.to_vec();
+                                                buf.extend(check);
+                                                res.push((*hash, String::from_utf8(buf).unwrap()));
+                                            }
+                                            !valid
+                                        });
+                                        if list.is_empty() {
+                                            hashes.0.remove(&slot);
+                                            if hashes.0.is_empty() {
+                                                break 'outer_loop;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -118,12 +164,15 @@ mod test {
 
     #[test]
     fn hash_bruteforce() {
+        let mut hashes = HashSlot::new();
         for _ in 0..50 {
             let random = std::hash::RandomState::new().build_hasher().finish();
-            let trim = murmur::revhash_trim(random);
-            let res = bruteforce(trim).unwrap();
-            let check = murmur::hash(&res);
-            assert_eq!(random, check);
+            hashes.insert(random);
+        }
+
+        let res = bruteforce(hashes);
+        for (hash, inverse_key) in res {
+            assert_eq!(hash, murmur::hash(&inverse_key));
         }
     }
 }
