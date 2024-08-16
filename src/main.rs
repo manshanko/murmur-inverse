@@ -95,7 +95,7 @@ fn main() {
     }
     print!("{out}");
     if num_hashes > 1 {
-        println!("generated keys for {} of {} hashes", res.len(), num_hashes);
+        eprintln!("generated keys for {} of {} hashes", res.len(), num_hashes);
     }
 }
 
