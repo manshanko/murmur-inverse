@@ -56,6 +56,33 @@ impl HashSlot {
     }
 }
 
+struct Key([u8; 16]);
+
+impl Key {
+    fn new(prefix: [u8; 8], suffix: &[u8]) -> Self {
+        assert!(suffix.len() < 8);
+        let mut key = [0; 16];
+        key[..8].copy_from_slice(&prefix);
+        key[8..8 + suffix.len()].copy_from_slice(suffix);
+        Self(key)
+    }
+
+    fn len(&self) -> usize {
+        self.0.iter()
+            .enumerate()
+            .find_map(|(i, &b)| (b == 0).then_some(i))
+            .unwrap()
+    }
+
+    fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.0[..self.len()]).unwrap()
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        &self.0[..self.len()]
+    }
+}
+
 fn main() {
     let mut args = std::env::args();
     let _bin = args.next();
@@ -86,13 +113,14 @@ fn main() {
     assert_eq!(res.len(), num_hashes);
     if cfg!(debug_assertions) {
         for (hash, inverse_key) in &res {
-            assert_eq!(*hash, murmur::hash(inverse_key));
+            assert_eq!(*hash, murmur::hash(inverse_key.as_bytes()));
         }
     }
     let elapsed = start.elapsed().as_millis();
 
     let mut out = String::new();
     for (hash, inverse_key) in &res {
+        let inverse_key = inverse_key.as_str();
         writeln!(&mut out, "{hash:016x} = {inverse_key:?}").unwrap();
     }
     print!("{out}");
@@ -103,8 +131,9 @@ fn main() {
 
 fn bruteforce(
     mut hashes: HashSlot,
-) -> Vec<(u64, String)> {
-    let mut res = Vec::new();
+) -> Vec<(u64, Key)> {
+    let len: usize = hashes.0.iter().map(|(_, list)| list.len()).sum();
+    let mut res = Vec::with_capacity(len);
     'outer_loop: for i0 in ASCII_RANGE {
         for i1 in ASCII_RANGE {
             for i2 in ASCII_RANGE {
@@ -134,9 +163,7 @@ fn bruteforce(
                                             let check = &check[..7];
                                             let valid = check.iter().all(|&b| AsciiIter::contains(b));
                                             if valid {
-                                                let mut buf = prefix.to_vec();
-                                                buf.extend(check);
-                                                res.push((*hash, String::from_utf8(buf).unwrap()));
+                                                res.push((*hash, Key::new(prefix, check)));
                                             }
                                             !valid
                                         });
@@ -174,7 +201,7 @@ mod test {
 
         let res = bruteforce(hashes);
         for (hash, inverse_key) in res {
-            assert_eq!(hash, murmur::hash(&inverse_key));
+            assert_eq!(hash, murmur::hash(inverse_key.as_bytes()));
         }
     }
 }
