@@ -61,6 +61,7 @@ fn main() {
     let _bin = args.next();
     let target = args.next().expect("expected 8 byte hex (16 characters)");
 
+    let start = std::time::Instant::now();
     let mut targets = Vec::new();
     match u64::from_str_radix(&target, 16) {
         Ok(hash) => targets.push(hash),
@@ -88,6 +89,7 @@ fn main() {
             assert_eq!(*hash, murmur::hash(inverse_key));
         }
     }
+    let elapsed = start.elapsed().as_millis();
 
     let mut out = String::new();
     for (hash, inverse_key) in &res {
@@ -95,7 +97,7 @@ fn main() {
     }
     print!("{out}");
     if num_hashes > 1 {
-        eprintln!("generated keys for {} of {} hashes", res.len(), num_hashes);
+        eprintln!("generated keys for {} of {} hashes in {}ms", res.len(), num_hashes, elapsed);
     }
 }
 
