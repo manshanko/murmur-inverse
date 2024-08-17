@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::Write;
 
 mod murmur;
@@ -41,14 +42,18 @@ impl Iterator for AsciiIter {
     }
 }
 
-struct HashSlot(HashMap<u64, Vec<(u64, u64)>>);
+struct HashSlot(HashMap<u64, Vec<(u64, u64)>>, HashSet<u64>);
 
 impl HashSlot {
     fn new() -> Self {
-        Self(HashMap::new())
+        Self(HashMap::new(), HashSet::new())
     }
 
     fn insert(&mut self, hash: u64) {
+        if self.1.contains(&hash) {
+            return;
+        }
+        self.1.insert(hash);
         let trim = murmur::revhash_trim(hash);
         let slot = trim & ASCII_HASH_MASK;
         let list = self.0.entry(slot).or_insert(Vec::new());
@@ -103,11 +108,11 @@ fn main() {
         }
     }
 
-    let num_hashes = targets.len();
     let mut hashes = HashSlot::new();
     for hash in targets {
         hashes.insert(hash);
     }
+    let num_hashes: usize = hashes.0.iter().map(|(_, list)| list.len()).sum();
 
     let res = bruteforce(hashes);
     assert_eq!(res.len(), num_hashes);
