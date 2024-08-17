@@ -49,6 +49,10 @@ impl HashSlot {
         Self(HashMap::new(), HashSet::new())
     }
 
+    fn len(&self) -> usize {
+        self.0.iter().map(|(_, list)| list.len()).sum()
+    }
+
     fn insert(&mut self, hash: u64) {
         if self.1.contains(&hash) {
             return;
@@ -112,7 +116,7 @@ fn main() {
     for hash in targets {
         hashes.insert(hash);
     }
-    let num_hashes: usize = hashes.0.iter().map(|(_, list)| list.len()).sum();
+    let num_hashes = hashes.len();
 
     let res = bruteforce(hashes);
     assert_eq!(res.len(), num_hashes);
@@ -137,7 +141,7 @@ fn main() {
 fn bruteforce(
     mut hashes: HashSlot,
 ) -> Vec<(u64, Key)> {
-    let len: usize = hashes.0.iter().map(|(_, list)| list.len()).sum();
+    let len = hashes.len();
     let mut res = Vec::with_capacity(len);
     'outer_loop: for i0 in ASCII_RANGE {
         for i1 in ASCII_RANGE {
