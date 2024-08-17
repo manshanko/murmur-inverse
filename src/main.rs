@@ -134,7 +134,11 @@ fn main() {
     }
     print!("{out}");
     if num_hashes > 1 {
-        eprintln!("generated keys for {} of {} hashes in {}ms", res.len(), num_hashes, elapsed);
+        eprintln!("generated keys for {} of {} hashes in {}.{:03} seconds",
+            res.len(),
+            num_hashes,
+            elapsed / 1000,
+            elapsed % 1000);
     }
 }
 
