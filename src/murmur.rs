@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 const MAGIC: u64 = 0xc6a4a7935bd1e995;
 const ROLL: u8 = 47;
 const MAGIC_INVERSE: u64 = 0x5f7a0ea7e59b19bd;
